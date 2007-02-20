@@ -6,6 +6,8 @@
 import time
 import re
 import elementtree.ElementTree as ET
+import string
+import random
 
 def parseNodes(nodes, xmlns = ""):
 	retval = []
@@ -68,3 +70,29 @@ def convertTupleListToDict(list):
 		retval[tuple[0]] = tuple[1]
 	return retval
 
+
+_rnd_chars = string.ascii_letters+string.digits
+_rnd_chars_len = len(_rnd_chars)
+def rndstr(len):
+	retval = ""
+	while len > 0:
+		retval += _rnd_chars[random.randint(0, _rnd_chars_len-1)]
+		len -= 1
+	return retval
+
+def mktmpdir(prefix = "/tmp/tmpdir-", randchars = 10):
+	old_umask = os.umask(0077)
+	tries = 5
+	while True:
+		dirname = prefix + rndstr(randchars)
+		try:
+			os.mkdir(dirname)
+		except OSError, e:
+			tries -= 1
+			if e.errno == errno.EEXIST and tries > 0:
+				continue
+			else:
+				os.umask(old_umask)
+				raise
+	os.umask(old_umask)
+	return dirname
