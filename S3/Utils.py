@@ -3,6 +3,7 @@
 ##         http://www.logix.cz/michal
 ## License: GPL Version 2
 
+import os
 import time
 import re
 import elementtree.ElementTree as ET
@@ -80,19 +81,27 @@ def rndstr(len):
 		len -= 1
 	return retval
 
-def mktmpdir(prefix = "/tmp/tmpdir-", randchars = 10):
+def mktmpsomething(prefix, randchars, createfunc):
 	old_umask = os.umask(0077)
 	tries = 5
-	while True:
+	while tries > 0:
 		dirname = prefix + rndstr(randchars)
 		try:
-			os.mkdir(dirname)
+			createfunc(dirname)
+			break
 		except OSError, e:
-			tries -= 1
-			if e.errno == errno.EEXIST and tries > 0:
-				continue
-			else:
+			if e.errno != errno.EEXIST:
 				os.umask(old_umask)
 				raise
+		tries -= 1
+
 	os.umask(old_umask)
 	return dirname
+
+def mktmpdir(prefix = "/tmp/tmpdir-", randchars = 10):
+	return mktmpsomething(prefix, randchars, os.mkdir)
+
+def mktmpfile(prefix = "/tmp/tmpfile-", randchars = 20):
+	createfunc = lambda filename : os.close(os.open(filename, os.O_CREAT | os.O_EXCL))
+	return mktmpsomething(prefix, randchars, createfunc)
+
