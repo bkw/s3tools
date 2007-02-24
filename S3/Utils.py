@@ -105,3 +105,6 @@ def mktmpfile(prefix = "/tmp/tmpfile-", randchars = 20):
 	createfunc = lambda filename : os.close(os.open(filename, os.O_CREAT | os.O_EXCL))
 	return mktmpsomething(prefix, randchars, createfunc)
 
+def diskfree(path):
+	df = os.statvfs_result(os.statvfs(path))
+	return df.f_bavail*df.f_bsize
