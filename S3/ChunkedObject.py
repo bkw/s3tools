@@ -66,31 +66,21 @@ class ChunkedObjectFile(object):
 			#else:
 			#	print "%s does no longer exist" % self._f_name
 
-class ChunkedObject(object):
-	MODE_PUT = 0x1
-	MODE_GET = 0x2
-
+class ChunkedObjectWriter(object):
 	_chunk_size = 1024
-	_read_chunk_size = 128	## -> 4096 after testing!
+	_read_chunk_size = 4096
 
-	def __init__(self, mode, tmp_dir = "/tmp", chunk_done_callback = None, callback_arg = None):
+	def __init__(self, tmp_dir = "/tmp", chunk_done_callback = None, callback_arg = None):
 		self._tmp_dir = mktmpdir(tmp_dir + "/s3cmdChunk")
 		self._chunklist = []
 		self._callback = chunk_done_callback
 		self._callback_arg = callback_arg
 		self._big_sha1 = SHA.new()
 		self._autoremove = (self._callback is not None)
-		if mode[0] == "r":
-			self._mode = self.MODE_GET
-		elif mode[0] == "w":
-			self._mode = self.MODE_PUT
-			self._current_chunk = ChunkedObjectFile(self._tmp_dir, self._chunk_size,
-					autoremove = self._autoremove, big_sha1 = self._big_sha1)
-		else:
-			raise ValueError("Invalid mode: %s" % (mode))
+		self._current_chunk = ChunkedObjectFile(self._tmp_dir, self._chunk_size,
+				autoremove = self._autoremove, big_hash = self._big_sha1)
 	
 	def put_stream(self, stream, close_on_eof = False):
-		assert(self._mode == self.MODE_PUT)
 		min = lambda x, y : ((x < y) and x or y)
 		s = Streamer(stream)
 		data_rest = None
@@ -98,7 +88,7 @@ class ChunkedObject(object):
 			if self._current_chunk.free_space() <= 0L:
 				self.commit_current_chunk()
 				self._current_chunk = ChunkedObjectFile(self._tmp_dir, self._chunk_size,
-						autoremove = self._autoremove, big_sha1 = self._big_sha1)
+						autoremove = self._autoremove, big_hash = self._big_sha1)
 			if data_rest:
 				#print "More data in rest: %s (%d)" % (data_rest, len(data_rest))
 				data = data_rest
@@ -120,7 +110,7 @@ class ChunkedObject(object):
 			self._current_chunk.close()
 			if self._callback:
 				self._chunklist[-1]["obj_id"] = self._callback(self._callback_arg, self._current_chunk)
-			else
+			else:
 				self._chunklist[-1]["filename"] = self._current_chunk.name()
 			self._current_chunk = None
 	
@@ -132,7 +122,8 @@ class ChunkedObject(object):
 			stream = StringIO()
 		stream.write("big_sha1=%s\n" % self.get_big_sha1())
 		for chunk in self._chunklist:
-			stream.write("id=%s	size=%s	sha1=%s\n" % (chunk["obj_id"], chunk["size"], chunk["sha1"]))
+			stream.write("id=%s	size=%s	sha1=%s\n" % (
+				chunk["obj_id"], chunk["size"], chunk["sha1"]))
 		stream.seek(0)
 		return stream
 
@@ -143,19 +134,18 @@ class ChunkedObject(object):
 		self._chunk_size = new_size
 		self._current_chunk.set_max_size(new_size)
 
-def _put_callback(arg, chunk):
-	print "CallBack(%s): %s (%d bytes)" % (
-		arg,
-		chunk.name(),
-		chunk.size())
-	return os.path.basename(chunk.name())
-	
 if __name__ == "__main__":
-	f = ChunkedObject("w", chunk_done_callback = _put_callback, callback_arg = "Some cookie")
-	f.set_chunk_size(500)
-	f.put_stream(open("/etc/passwd"), "w")
-	f.commit()
-	print "# ChunkedObject info:\n" + f.get_info().read()
+	def _put_callback(arg, chunk):
+		print "CallBack: %s (%d bytes)" % (
+			chunk.name(),
+			chunk.size())
+		return os.path.basename(chunk.name())
+	
+	w = ChunkedObjectWriter(chunk_done_callback = _put_callback, callback_arg = {})
+	w.set_chunk_size(500)
+	w.put_stream(open("/etc/passwd"))
+	w.commit()
+	print "# ChunkedObject info:\n" + w.get_info().read()
 
 #	f = ChunkedObject("s3://s3py-1/chunked.file", "w")
 #	f.chunk_size = 128
