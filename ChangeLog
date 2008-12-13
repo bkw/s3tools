@@ -1,5 +1,14 @@
 2008-12-14  Michal Ludvig  <michal@logix.cz>
 
+	* s3cmd, S3/Utils.py, S3/Config.py, S3/Progress.py: Detect
+	  encoding from stdin/stdout/stderr and put it into
+	  Config.system_encoding. 
+	  Set _stdout/_stderr rewriters accordingly with the detected 
+	  encoding.
+	  Also keep the rewriters' streams in Config
+
+2008-12-14  Michal Ludvig  <michal@logix.cz>
+
     Merge from trunk r288:
 	* S3/Progress.py: Restructured import Utils to avoid import
 	  conflicts.

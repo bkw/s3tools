@@ -13,6 +13,8 @@ import errno
 
 from logging import debug, info, warning, error
 
+from Config import Config
+
 try:
 	import xml.etree.ElementTree as ET
 except ImportError:
@@ -183,19 +185,29 @@ def mkdir_with_parents(dir_name):
 
 def unicodise(string):
 	"""
-	Convert 'string' to Unicode or raise an exception.
+	Convert 'str' string to 'unicode' string using our
+	system charset or raise an exception.
 	"""
 	debug("Unicodising %r" % string)
 	if type(string) == unicode:
 		return string
+	cfg = Config()
 	try:
-		return string.decode("utf-8")
+		return string.decode(cfg.system_encoding)
 	except UnicodeDecodeError:
-		raise UnicodeDecodeError("Conversion to unicode failed: %r" % string)
+		raise UnicodeDecodeError("Conversion to unicode failed (charset: %s) - %r" % (cfg.system_encoding, string))
 
-def try_unicodise(string):
+def deunicodise(ustring):
+	"""
+	Convert 'unicode' string to 'str' string using our 
+	system charset or raise an exception.
+	"""
+	debug("De-Unicodising %r" % ustring)
+	if type(ustring) == str:
+		return ustring
+	cfg = Config()
 	try:
-		return unicodise(string)
-	except UnicodeDecodeError:
-		return string
+		return ustring.encode(cfg.system_encoding)
+	except UnicodeEncodeError:
+		raise UnicodeEncodeError("Conversion from unicode failed (charset: %s) - %r" % (cfg.system_encoding, ustring))
 

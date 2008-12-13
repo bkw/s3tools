@@ -54,6 +54,7 @@ class Config(object):
 	default_mime_type = "binary/octet-stream"
 	guess_mime_type = False
 	debug_syncmatch = False
+	system_encoding = "utf-8"
 	# List of compiled REGEXPs
 	exclude = []
 	# Dict mapping compiled REGEXPs back to their textual form

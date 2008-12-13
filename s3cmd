@@ -21,18 +21,8 @@ from optparse import OptionParser, Option, OptionValueError, IndentedHelpFormatt
 from logging import debug, info, warning, error
 from distutils.spawn import find_executable
 
-## Output native on TTY, UTF-8 otherwise (redirects)
-#_stdout = sys.stdout.isatty() and sys.stdout or codecs.getwriter("utf-8")(sys.stdout)
-#_stderr = sys.stderr.isatty() and sys.stderr or codecs.getwriter("utf-8")(sys.stderr)
-## Output UTF-8 in all cases
-_stdout = codecs.getwriter("utf-8")(sys.stdout)
-_stderr = codecs.getwriter("utf-8")(sys.stderr)
-## Leave it to the terminal
-#_stdout = sys.stdout
-#_stderr = sys.stderr
-
 def output(message):
-	_stdout.write(message + "\n")
+	cfg._stdout.write(message + "\n")
 
 def check_args_type(args, type, verbose_type):
 	for arg in args:
@@ -435,7 +425,7 @@ def _get_filelist_local(local_uri):
 	local_path = local_uri.path()
 	if os.path.isdir(local_path):
 		loc_base = os.path.join(local_path, "")
-		filelist = os.walk(local_path)
+		filelist = os.walk(deunicodise(local_path))
 	else:
 		loc_base = "./"
 		filelist = [( '.', [], [local_path] )]
@@ -445,6 +435,12 @@ def _get_filelist_local(local_uri):
 		## TODO: implement explicit exclude
 		for f in files:
 			full_name = os.path.join(root, f)
+			try:
+				full_name = unicodise(full_name)
+			except UnicodeDecodeError, e:
+				warning(e)
+				warning("Skipping over that file")
+				continue
 			if not os.path.isfile(full_name):
 				continue
 			if os.path.islink(full_name):
@@ -970,7 +966,7 @@ commands_list = [
 	{"cmd":"ls", "label":"List objects or buckets", "param":"[s3://BUCKET[/PREFIX]]", "func":cmd_ls, "argc":0},
 	{"cmd":"la", "label":"List all object in all buckets", "param":"", "func":cmd_buckets_list_all_all, "argc":0},
 	{"cmd":"put", "label":"Put file into bucket", "param":"FILE [FILE...] s3://BUCKET[/PREFIX]", "func":cmd_object_put, "argc":2},
-	{"cmd":"get", "label":"Get file from bucket", "param":"s3://BUCKET/OBJECT LOCAL_FILE", "func":cmd_object_get, "argc":1},
+	{"cmd":"get", "label":"Get file from bucket", "param":"s3://BUCKET/OBJECT [s3://...] [LOCAL_FILE or LOCAL_DIR]", "func":cmd_object_get, "argc":1},
 	{"cmd":"del", "label":"Delete file from bucket", "param":"s3://BUCKET/OBJECT", "func":cmd_object_del, "argc":1},
 	#{"cmd":"mkdir", "label":"Make a virtual S3 directory", "param":"s3://BUCKET/path/to/dir", "func":cmd_mkdir, "argc":1},
 	{"cmd":"sync", "label":"Synchronize a directory tree to S3", "param":"LOCAL_DIR s3://BUCKET[/PREFIX] or s3://BUCKET[/PREFIX] LOCAL_DIR", "func":cmd_sync, "argc":2},
@@ -1056,6 +1052,7 @@ def main():
 
 	optparser.add_option(      "--progress", dest="progress_meter", action="store_true", help="Display progress meter (default on TTY).")
 	optparser.add_option(      "--no-progress", dest="progress_meter", action="store_false", help="Don't display progress meter (default on non-TTY).")
+	optparser.add_option(      "--system-encoding", dest="system_encoding", action="store", help="System-wide character set / encoding. Usually auto-detected, but may need to be set for instance for use in cron-jobs.")
 	optparser.add_option("-v", "--verbose", dest="verbosity", action="store_const", const=logging.INFO, help="Enable verbose output.")
 	optparser.add_option("-d", "--debug", dest="verbosity", action="store_const", const=logging.DEBUG, help="Enable debug output.")
 	optparser.add_option(      "--version", dest="show_version", action="store_true", help="Show s3cmd version (%s) and exit." % (PkgInfo.version))
@@ -1070,12 +1067,35 @@ def main():
 
 	(options, args) = optparser.parse_args()
 
+	## First things first...
+	## Detect whether we're on pure-ASCII terminal
+	## Hopefully at least one of stdin/stdout/stderr
+	## will have encoding set...
+	if options.system_encoding is not None:
+		system_encoding = options.system_encoding
+	elif sys.stdin.encoding is not None:
+		system_encoding = sys.stdin.encoding
+	elif sys.stdout.encoding is not None:
+		system_encoding = sys.stdout.encoding
+	elif sys.stderr.encoding is not None:
+		system_encoding = sys.stderr.encoding
+
+	## Force our system encoding outputs
+	if system_encoding != 'ANSI_X3.4-1968':
+		_stdout = codecs.getwriter(system_encoding)(sys.stdout)
+		_stderr = codecs.getwriter(system_encoding)(sys.stderr)
+	else:
+		_stdout = sys.stdout
+		_stderr = sys.stderr
+
 	## Some mucking with logging levels to enable 
 	## debugging/verbose output for config file parser on request
 	logging.basicConfig(level=options.verbosity,
 	                    format='%(levelname)s: %(message)s',
 	                    stream = _stderr)
-	
+
+	info("System character set: %s" % system_encoding)
+
 	if options.show_version:
 		output("s3cmd version %s" % PkgInfo.version)
 		sys.exit(0)
@@ -1102,12 +1122,13 @@ def main():
 		cfg.verbosity = options.verbosity
 	logging.root.setLevel(cfg.verbosity)
 
+	## Save our _stdout / _stderr streams to Config() for later use
+	Config._stdout = _stdout
+	Config._stderr = _stderr
+
 	## Default to --progress on TTY devices, --no-progress elsewhere
 	## Can be overriden by actual --(no-)progress parameter
 	cfg.update_option('progress_meter', sys.stdout.isatty())
-
-	## We may need a way to display progress meter on STDERR or somewhere else
-	Progress._stdout = _stdout
 
 	## Update Config with other parameters
 	for option in cfg.option_list():
@@ -1210,8 +1231,7 @@ if __name__ == '__main__':
 		from S3.S3Uri import *
 		from S3 import Utils
 		from S3.Exceptions import *
-		from S3.Utils import unicodise
-		from S3.Progress import Progress
+		from S3.Utils import unicodise, deunicodise
 
 		main()
 		sys.exit(0)

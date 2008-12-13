@@ -8,9 +8,9 @@ import datetime
 import Utils
 
 class Progress(object):
-	_stdout = sys.stdout
-
 	def __init__(self, labels, total_size):
+		from Config import Config
+		self._stdout = Config._stdout
 		self.new_file(labels, total_size)
 	
 	def new_file(self, labels, total_size):
@@ -44,7 +44,7 @@ class Progress(object):
 		self.display(done_message = message)
 
 	def output_labels(self):
-		self._stdout.write("%s -> %s\n" % (self.labels['source'], self.labels['destination']))
+		self._stdout.write(u"%s -> %s\n" % (self.labels['source'], self.labels['destination']))
 		self._stdout.flush()
 
 	def display(self, new_file = False, done_message = None):
