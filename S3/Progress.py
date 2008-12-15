@@ -10,7 +10,7 @@ import Utils
 class Progress(object):
 	def __init__(self, labels, total_size):
 		from Config import Config
-		self._stdout = Config._stdout
+		self._stdout = sys.stdout
 		self.new_file(labels, total_size)
 	
 	def new_file(self, labels, total_size):

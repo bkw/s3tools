@@ -1,5 +1,11 @@
 2008-12-15  Michal Ludvig  <michal@logix.cz>
 
+	* s3cmd: Use locale.getpreferredencoding() for unicode<->str 
+	  conversions.
+	* s3cmd: Set encoding-writer on sys.stdout, 'get' to stdout
+	  will use sys.__stdout__ instead. No need to pollute Config 
+	  with _stdout and _stderr anymore.
+	* S3/Progress.py: Use sys.stdout.
 	* S3/S3Uri.py: S3UriFile can keeps both unicode 'path()'
 	  and encoded string 'rawpath()'
 	* S3/S3Uri.py: Fixed module initialisation.

@@ -15,6 +15,7 @@ import pwd, grp
 import glob
 import traceback
 import codecs
+import locale
 
 from copy import copy
 from optparse import OptionParser, Option, OptionValueError, IndentedHelpFormatter
@@ -22,7 +23,7 @@ from logging import debug, info, warning, error
 from distutils.spawn import find_executable
 
 def output(message):
-	cfg._stdout.write(message + "\n")
+	print(message)
 
 def check_args_type(args, type, verbose_type):
 	for arg in args:
@@ -304,7 +305,7 @@ def cmd_object_get(args):
 
 		if destination == "-":
 			## stdout
-			dst_stream = sys.stdout
+			dst_stream = sys.__stdout__
 		else:
 			## File
 			try:
@@ -435,20 +436,20 @@ def _get_filelist_local(local_uri):
 		## TODO: implement explicit exclude
 		for f in files:
 			full_name = os.path.join(root, f)
-			try:
-				full_name = unicodise(full_name)
-			except UnicodeDecodeError, e:
-				warning(e)
-				warning("Skipping over that file")
-				continue
 			if not os.path.isfile(full_name):
 				continue
 			if os.path.islink(full_name):
 				## Synchronize symlinks... one day
 				## for now skip over
 				continue
-			file = full_name[loc_base_len:]
 			sr = os.stat_result(os.lstat(full_name))
+			try:
+				full_name = unicodise(full_name)
+			except UnicodeDecodeError, e:
+				warning(e)
+				warning("Skipping over that file")
+				continue
+			file = full_name[loc_base_len:]
 			loc_list[file] = {
 				'full_name' : full_name,
 				'size' : sr.st_size, 
@@ -1068,31 +1069,21 @@ def main():
 	(options, args) = optparser.parse_args()
 
 	## First things first...
-	## Detect whether we're on pure-ASCII terminal
-	## Hopefully at least one of stdin/stdout/stderr
-	## will have encoding set...
+	## Detect 
 	if options.system_encoding is not None:
 		system_encoding = options.system_encoding
-	elif sys.stdin.encoding is not None:
-		system_encoding = sys.stdin.encoding
-	elif sys.stdout.encoding is not None:
-		system_encoding = sys.stdout.encoding
-	elif sys.stderr.encoding is not None:
-		system_encoding = sys.stderr.encoding
+	else:
+		system_encoding = locale.getpreferredencoding()
 
 	## Force our system encoding outputs
-	if system_encoding != 'ANSI_X3.4-1968':
-		_stdout = codecs.getwriter(system_encoding)(sys.stdout)
-		_stderr = codecs.getwriter(system_encoding)(sys.stderr)
-	else:
-		_stdout = sys.stdout
-		_stderr = sys.stderr
+	sys.stdout = codecs.getwriter(system_encoding)(sys.__stdout__)
+	sys.stderr = codecs.getwriter(system_encoding)(sys.__stderr__)
 
 	## Some mucking with logging levels to enable 
 	## debugging/verbose output for config file parser on request
 	logging.basicConfig(level=options.verbosity,
 	                    format='%(levelname)s: %(message)s',
-	                    stream = _stderr)
+	                    stream = sys.stderr)
 
 	info("System character set: %s" % system_encoding)
 
@@ -1121,10 +1112,6 @@ def main():
 	if options.verbosity != default_verbosity:
 		cfg.verbosity = options.verbosity
 	logging.root.setLevel(cfg.verbosity)
-
-	## Save our _stdout / _stderr streams to Config() for later use
-	Config._stdout = _stdout
-	Config._stderr = _stderr
 
 	## Default to --progress on TTY devices, --no-progress elsewhere
 	## Can be overriden by actual --(no-)progress parameter
