@@ -8,23 +8,23 @@ import sys
 from BidirMap import BidirMap
 from logging import debug
 from S3 import S3
-from Utils import unicodise
+from Utils import unicodise, deunicodise
 
 class S3Uri(object):
 	type = None
 	_subclasses = None
 
 	def __new__(self, string):
-		if not self._subclasses:
+		if not S3Uri._subclasses:
 			## Generate a list of all subclasses of S3Uri
-			self._subclasses = []
+			S3Uri._subclasses = []
 			dict = sys.modules[__name__].__dict__
 			for something in dict:
 				if type(dict[something]) is not type(self):
 					continue
-				if issubclass(dict[something], self) and dict[something] != self:
-					self._subclasses.append(dict[something])
-		for subclass in self._subclasses:
+				if issubclass(dict[something], S3Uri) and dict[something] != S3Uri:
+					S3Uri._subclasses.append(dict[something])
+		for subclass in S3Uri._subclasses:
 			try:
 				instance = object.__new__(subclass)
 				instance.__init__(string)
@@ -104,18 +104,56 @@ class S3UriS3FS(S3Uri):
 class S3UriFile(S3Uri):
 	type = "file"
 	_re = re.compile("^(\w+://)?(.*)")
-	def __init__(self, string):
-		match = self._re.match(string)
+
+	def __init__(self, path):
+		# path - should contain unicode version of path
+		# rawpath - should contain byte-stream path, ie not unicode
+		# on a typical UTF-8 system: rawpath=path.encode("utf-8")
+		match = self._re.match(path)
 		groups = match.groups()
 		if groups[0] not in (None, "file://"):
-			raise ValueError("%s: not a file:// URI" % string)
-		self._path = unicodise(groups[1]).split("/")
+			raise ValueError("%s: not a file:// URI" % path)
+		path = groups[1]
+		if rawpath is not None:
+			self._rawpath = rawpath
+		else:
+			if type(path) != unicode:
+				self._rawpath = path
+			else:
+				self._rawpath = deunicodise(path)
+		if type(path) != unicode:
+			path = unicodise(path)
+		self._path = path
+
+	def set_rawpath(self, rawpath):
+		"""
+		set_rawpath(rawpath)
+		override byte-stream representation of unicode 'self.path()'
+		On a typical UTF-8 system: rawpath=path.encode("utf-8")
+		"""
+		assert(type(rawpath) = str)
+		self._rawpath = rawpath
 
 	def path(self):
-		return "/".join(self._path)
+		"returns <type 'unicode'>"
+		return self._path
+
+	def rawpath(self):
+		"""
+		returns path encoded according to current
+		system encoding, <type 'str'>
+		
+		"""
+		return self._rawpath
 
 	def uri(self):
 		return "/".join(["file:/", self.path()])
+
+	def __str__(self):
+		return self.rawpath()
+
+	def __unicode__(self):
+		return self.path()
 
 if __name__ == "__main__":
 	uri = S3Uri("s3://bucket/object")

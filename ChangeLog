@@ -1,3 +1,9 @@
+2008-12-15  Michal Ludvig  <michal@logix.cz>
+
+	* S3/S3Uri.py: S3UriFile can keeps both unicode 'path()'
+	  and encoded string 'rawpath()'
+	* S3/S3Uri.py: Fixed module initialisation.
+
 2008-12-14  Michal Ludvig  <michal@logix.cz>
 
 	* s3cmd, S3/Utils.py, S3/Config.py, S3/Progress.py: Detect
@@ -9,7 +15,7 @@
 
 2008-12-14  Michal Ludvig  <michal@logix.cz>
 
-    Merge from trunk r288:
+	Merge from trunk r288:
 	* S3/Progress.py: Restructured import Utils to avoid import
 	  conflicts.
 
